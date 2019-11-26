@@ -5,7 +5,7 @@ from nbconvert.preprocessors import ExecutePreprocessor
 
 def run_notebook(path):
     "Executes notebook `path` and shows any exceptions. Useful for testing"
-    nb = nbformat.read(open(path), as_version=nbformat.NO_CONVERT)
+    nb = nbformat.read(open(path, errors='ignore'), as_version=nbformat.NO_CONVERT)
     ExecutePreprocessor(timeout=600).preprocess(nb, {})
     print('done')
 
