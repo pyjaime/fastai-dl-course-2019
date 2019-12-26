@@ -16,6 +16,7 @@ def test_eq(a,b): test(a,b,operator.eq,'==')
 from pathlib import Path
 from IPython.core.debugger import set_trace
 from fastai import datasets
+from fastai.basics import *
 import pickle, gzip, math, torch, matplotlib as mpl
 import matplotlib.pyplot as plt
 from torch import tensor
