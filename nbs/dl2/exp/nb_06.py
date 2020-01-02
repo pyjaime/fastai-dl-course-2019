@@ -21,16 +21,22 @@ class Lambda(nn.Module):
 def flatten(x):      return x.view(x.shape[0], -1)
 
 class CudaCallback(Callback):
-    def begin_fit(self): self.model.cuda()
-    def begin_batch(self): self.run.xb,self.run.yb = self.xb.cuda(),self.yb.cuda()
+    def begin_fit(self):
+        self.model.cuda()
+
+    def begin_batch(self):
+        self.run.xb,self.run.yb = self.xb.cuda(),self.yb.cuda()
 
 class BatchTransformXCallback(Callback):
     _order=2
-    def __init__(self, tfm): self.tfm = tfm
-    def begin_batch(self): self.run.xb = self.tfm(self.xb)
+    def __init__(self, tfm):
+        self.tfm = tfm
+    def begin_batch(self):
+        self.run.xb = self.tfm(self.xb)
 
 def view_tfm(*size):
-    def _inner(x): return x.view(*((-1,)+size))
+    def _inner(x):
+        return x.view(*((-1,)+size))
     return _inner
 
 def get_runner(model, data, lr=0.6, cbs=None, opt_func=None, loss_func = F.cross_entropy):
@@ -39,52 +45,67 @@ def get_runner(model, data, lr=0.6, cbs=None, opt_func=None, loss_func = F.cross
     learn = Learner(model, opt, loss_func, data)
     return learn, Runner(cb_funcs=listify(cbs))
 
-def children(m): return list(m.children())
+def children(m):
+    return list(m.children())
 
 class Hook():
-    def __init__(self, m, f): self.hook = m.register_forward_hook(partial(f, self))
-    def remove(self): self.hook.remove()
-    def __del__(self): self.remove()
+    def __init__(self, m, f):
+        self.hook = m.register_forward_hook(partial(f, self)) # ties the function to (it)self
+    def remove(self):
+        self.hook.remove()
+    def __del__(self): # called when python frees memory
+        self.remove()
 
 def append_stats(hook, mod, inp, outp):
-    if not hasattr(hook,'stats'): hook.stats = ([],[])
+    if not hasattr(hook,'stats'):
+        hook.stats = ([],[])
     means,stds = hook.stats
-    if mod.training:
-        means.append(outp.data.mean())
-        stds .append(outp.data.std())
+    means.append(outp.data.mean())
+    stds .append(outp.data.std())
 
 class ListContainer():
-    def __init__(self, items): self.items = listify(items)
+    def __init__(self, items):
+        self.items = listify(items)
     def __getitem__(self, idx):
-        try: return self.items[idx]
-        except TypeError:
-            if isinstance(idx[0],bool):
-                assert len(idx)==len(self) # bool mask
-                return [o for m,o in zip(idx,self.items) if m]
-            return [self.items[i] for i in idx]
-    def __len__(self): return len(self.items)
-    def __iter__(self): return iter(self.items)
-    def __setitem__(self, i, o): self.items[i] = o
-    def __delitem__(self, i): del(self.items[i])
+        if isinstance(idx, (int,slice)):
+            return self.items[idx]
+        if isinstance(idx[0],bool):
+            assert len(idx)==len(self) # bool mask
+            return [o for m,o in zip(idx,self.items) if m]
+        return [self.items[i] for i in idx]
+    def __len__(self):
+        return len(self.items)
+    def __iter__(self):
+        return iter(self.items)
+    def __setitem__(self, i, o):
+        self.items[i] = o
+    def __delitem__(self, i):
+        del(self.items[i])
     def __repr__(self):
         res = f'{self.__class__.__name__} ({len(self)} items)\n{self.items[:10]}'
-        if len(self)>10: res = res[:-1]+ '...]'
+        if len(self)>10:
+            res = res[:-1]+ '...]'
         return res
 
 from torch.nn import init
 
 class Hooks(ListContainer):
-    def __init__(self, ms, f): super().__init__([Hook(m, f) for m in ms])
-    def __enter__(self, *args): return self
-    def __exit__ (self, *args): self.remove()
-    def __del__(self): self.remove()
+    def __init__(self, ms, f):
+        super().__init__([Hook(m, f) for m in ms])
+    def __enter__(self, *args):
+        return self
+    def __exit__ (self, *args):
+        self.remove()
+    def __del__(self):
+        self.remove()
 
     def __delitem__(self, i):
         self[i].remove()
         super().__delitem__(i)
 
     def remove(self):
-        for h in self: h.remove()
+        for h in self:
+            h.remove()
 
 def get_cnn_layers(data, nfs, layer, **kwargs):
     nfs = [1] + nfs
