@@ -34,34 +34,40 @@ def get_files(path, extensions=None, recurse=False, include=None):
         f = [o.name for o in os.scandir(path) if o.is_file()]
         return _get_files(path, f, extensions)
 
-def compose(x, funcs, *args, order_key='_order', **kwargs):
+def compose(x, funcs, *args, order_key='_order', **kwargs): # compose = chain functions
     key = lambda o: getattr(o, order_key, 0)
-    for f in sorted(listify(funcs), key=key): x = f(x, **kwargs)
+    for f in sorted(listify(funcs), key=key):
+        x = f(x, **kwargs)
     return x
 
 class ItemList(ListContainer):
-    def __init__(self, items, path='.', tfms=None):
+    def __init__(self, items, path='.', tfms=None): # items = filenames
         super().__init__(items)
         self.path,self.tfms = Path(path),tfms
 
     def __repr__(self): return f'{super().__repr__()}\nPath: {self.path}'
 
-    def new(self, items, cls=None):
-        if cls is None: cls=self.__class__
+    def new(self, items, cls=None): # creates a new object with the same class, path and tfms, plus the items
+        if cls is None:
+            cls=self.__class__
         return cls(items, self.path, tfms=self.tfms)
 
-    def  get(self, i): return i
-    def _get(self, i): return compose(self.get(i), self.tfms)
+    def  get(self, i):
+        return i
+    def _get(self, i):
+        return compose(self.get(i), self.tfms)
 
     def __getitem__(self, idx):
         res = super().__getitem__(idx)
-        if isinstance(res,list): return [self._get(o) for o in res]
+        if isinstance(res,list):
+            return [self._get(o) for o in res]
         return self._get(res)
 
 class ImageList(ItemList):
     @classmethod
     def from_files(cls, path, extensions=None, recurse=True, include=None, **kwargs):
-        if extensions is None: extensions = image_extensions
+        if extensions is None:
+            extensions = image_extensions
         return cls(get_files(path, extensions, recurse=recurse, include=include), path, **kwargs)
 
     def get(self, fn): return PIL.Image.open(fn)
@@ -85,18 +91,23 @@ def split_by_func(items, f):
     return f,t
 
 class SplitData():
-    def __init__(self, train, valid): self.train,self.valid = train,valid
+    def __init__(self, train, valid):
+        self.train,self.valid = train,valid
 
-    def __getattr__(self,k): return getattr(self.train,k)
+    def __getattr__(self,k):
+        return getattr(self.train,k)
+
     #This is needed if we want to pickle SplitData and be able to load it back without recursion errors
-    def __setstate__(self,data:Any): self.__dict__.update(data)
+    def __setstate__(self,data:Any):
+        self.__dict__.update(data)
 
     @classmethod
     def split_by_func(cls, il, f):
         lists = map(il.new, split_by_func(il.items, f))
         return cls(*lists)
 
-    def __repr__(self): return f'{self.__class__.__name__}\nTrain: {self.train}\nValid: {self.valid}\n'
+    def __repr__(self):
+        return f'{self.__class__.__name__}\nTrain: {self.train}\nValid: {self.valid}\n'
 
 from collections import OrderedDict
 
@@ -106,43 +117,56 @@ def uniqueify(x, sort=False):
     return res
 
 class Processor():
-    def process(self, items): return items
+    def process(self, items):
+        return items
 
 class CategoryProcessor(Processor):
-    def __init__(self): self.vocab=None
+    def __init__(self):
+        self.vocab=None
 
     def __call__(self, items):
         #The vocab is defined on the first use.
         if self.vocab is None:
             self.vocab = uniqueify(items)
-            self.otoi  = {v:k for k,v in enumerate(self.vocab)}
+            self.otoi  = {v:k for k,v in enumerate(self.vocab)} # otoi = object to int
         return [self.proc1(o) for o in items]
-    def proc1(self, item):  return self.otoi[item]
+
+    def proc1(self, item):
+        return self.otoi[item]
 
     def deprocess(self, idxs):
         assert self.vocab is not None
         return [self.deproc1(idx) for idx in idxs]
-    def deproc1(self, idx): return self.vocab[idx]
 
-def parent_labeler(fn): return fn.parent.name
+    def deproc1(self, idx):
+        return self.vocab[idx]
 
-def _label_by_func(ds, f, cls=ItemList): return cls([f(o) for o in ds.items], path=ds.path)
+def parent_labeler(fn):
+    return fn.parent.name
 
-#This is a slightly different from what was seen during the lesson,
-#   we'll discuss the changes in lesson 11
+def _label_by_func(ds, f, cls=ItemList):
+    return cls([f(o) for o in ds.items], path=ds.path)
+
+# This is a slightly different from what was seen during the lesson; we'll discuss the changes in lesson 11
 class LabeledData():
-    def process(self, il, proc): return il.new(compose(il.items, proc))
+    def process(self, il, proc):
+        return il.new(compose(il.items, proc))
 
     def __init__(self, x, y, proc_x=None, proc_y=None):
         self.x,self.y = self.process(x, proc_x),self.process(y, proc_y)
         self.proc_x,self.proc_y = proc_x,proc_y
 
-    def __repr__(self): return f'{self.__class__.__name__}\nx: {self.x}\ny: {self.y}\n'
-    def __getitem__(self,idx): return self.x[idx],self.y[idx]
-    def __len__(self): return len(self.x)
+    def __repr__(self):
+        return f'{self.__class__.__name__}\nx: {self.x}\ny: {self.y}\n'
+    def __getitem__(self,idx):
+        return self.x[idx],self.y[idx]
+    def __len__(self):
+        return len(self.x)
 
-    def x_obj(self, idx): return self.obj(self.x, idx, self.proc_x)
-    def y_obj(self, idx): return self.obj(self.y, idx, self.proc_y)
+    def x_obj(self, idx):
+        return self.obj(self.x, idx, self.proc_x)
+    def y_obj(self, idx):
+        return self.obj(self.y, idx, self.proc_y)
 
     def obj(self, items, idx, procs):
         isint = isinstance(idx, int) or (isinstance(idx,torch.LongTensor) and not idx.ndim)
@@ -163,18 +187,21 @@ def label_by_func(sd, f, proc_x=None, proc_y=None):
 class ResizeFixed(Transform):
     _order=10
     def __init__(self,size):
-        if isinstance(size,int): size=(size,size)
+        if isinstance(size,int):
+            size=(size,size)
         self.size = size
 
-    def __call__(self, item): return item.resize(self.size, PIL.Image.BILINEAR)
+    def __call__(self, item):
+        return item.resize(self.size, PIL.Image.BILINEAR)
 
 def to_byte_tensor(item):
     res = torch.ByteTensor(torch.ByteStorage.from_buffer(item.tobytes()))
     w,h = item.size
-    return res.view(h,w,-1).permute(2,0,1)
+    return res.view(h,w,-1).permute(2,0,1) # pil and pytorch order dimensions differently
 to_byte_tensor._order=20
 
-def to_float_tensor(item): return item.float().div_(255.)
+def to_float_tensor(item):
+    return item.float().div_(255.)
 to_float_tensor._order=30
 
 def show_image(im, figsize=(3,3)):
@@ -187,31 +214,35 @@ class DataBunch():
         self.train_dl,self.valid_dl,self.c_in,self.c_out = train_dl,valid_dl,c_in,c_out
 
     @property
-    def train_ds(self): return self.train_dl.dataset
+    def train_ds(self):
+        return self.train_dl.dataset
 
     @property
-    def valid_ds(self): return self.valid_dl.dataset
+    def valid_ds(self):
+        return self.valid_dl.dataset
 
 def databunchify(sd, bs, c_in=None, c_out=None, **kwargs):
     dls = get_dls(sd.train, sd.valid, bs, **kwargs)
     return DataBunch(*dls, c_in=c_in, c_out=c_out)
 
-SplitData.to_databunch = databunchify
+SplitData.to_databunch = databunchify # this is the same than going back to the class and writing the function there
 
 def normalize_chan(x, mean, std):
-    return (x-mean[...,None,None]) / std[...,None,None]
+    return (x-mean[...,None,None]) / std[...,None,None] # apply broadcasting
 
 _m = tensor([0.47, 0.48, 0.45])
 _s = tensor([0.29, 0.28, 0.30])
 norm_imagenette = partial(normalize_chan, mean=_m.cuda(), std=_s.cuda())
 
 import math
-def prev_pow_2(x): return 2**math.floor(math.log2(x))
+def prev_pow_2(x):
+    return 2**math.floor(math.log2(x))
 
 def get_cnn_layers(data, nfs, layer, **kwargs):
-    def f(ni, nf, stride=2): return layer(ni, nf, 3, stride=stride, **kwargs)
+    def f(ni, nf, stride=2):
+        return layer(ni, nf, 3, stride=stride, **kwargs)
     l1 = data.c_in
-    l2 = prev_pow_2(l1*3*3)
+    l2 = prev_pow_2(l1*3*3) # 27
     layers =  [f(l1  , l2  , stride=1),
                f(l2  , l2*2, stride=2),
                f(l2*2, l2*4, stride=2)]
@@ -229,9 +260,12 @@ def get_learn_run(nfs, data, lr, layer, cbs=None, opt_func=None, **kwargs):
     init_cnn(model)
     return get_runner(model, data, lr=lr, cbs=cbs, opt_func=opt_func)
 
+def cos_1cycle_anneal(start, high, end):
+    return [sched_cos(start, high), sched_cos(high, end)]
+
 def model_summary(run, learn, data, find_all=False):
-    xb,yb = get_batch(data.valid_dl, run)
-    device = next(learn.model.parameters()).device#Model may not be on the GPU yet
+    xb,yb = get_batch(data.valid_dl, run) # from LSVU
+    device = next(learn.model.parameters()).device #Model may not be on the GPU yet
     xb,yb = xb.to(device),yb.to(device)
     mods = find_modules(learn.model, is_lin_layer) if find_all else learn.model.children()
     f = lambda hook,mod,inp,out: print(f"{mod}\n{out.shape}\n")
