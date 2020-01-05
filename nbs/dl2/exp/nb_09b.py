@@ -68,8 +68,7 @@ class Learner():
         try:
             self.do_begin_fit(epochs)
             for epoch in range(epochs):
-                self.do_begin_epoch(epoch)
-                if not self('begin_epoch'): self.all_batches()
+                if not self.do_begin_epoch(epoch): self.all_batches()
 
                 with torch.no_grad():
                     self.dl = self.data.valid_dl
@@ -83,7 +82,7 @@ class Learner():
 
     ALL_CBS = {'begin_batch', 'after_pred', 'after_loss', 'after_backward', 'after_step',
         'after_cancel_batch', 'after_batch', 'after_cancel_epoch', 'begin_fit',
-        'begin_epoch', 'begin_epoch', 'begin_validate', 'after_epoch',
+        'begin_epoch', 'begin_validate', 'after_epoch',
         'after_cancel_train', 'after_fit'}
 
     def __call__(self, cb_name):

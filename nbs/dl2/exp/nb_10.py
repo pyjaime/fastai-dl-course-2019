@@ -11,28 +11,36 @@ make_rgb._order=0
 import random
 
 def show_image(im, ax=None, figsize=(3,3)):
-    if ax is None: _,ax = plt.subplots(1, 1, figsize=figsize)
+    if ax is None:
+        _,ax = plt.subplots(1, 1, figsize=figsize)
     ax.axis('off')
     ax.imshow(im.permute(1,2,0))
 
 def show_batch(x, c=4, r=None, figsize=None):
     n = len(x)
-    if r is None: r = int(math.ceil(n/c))
-    if figsize is None: figsize=(c*3,r*3)
+    if r is None:
+        r = int(math.ceil(n/c))
+    if figsize is None:
+        figsize=(c*3,r*3)
     fig,axes = plt.subplots(r,c, figsize=figsize)
-    for xi,ax in zip(x,axes.flat): show_image(xi, ax)
+    for xi,ax in zip(x,axes.flat):
+        show_image(xi, ax)
 
-class PilTransform(Transform): _order=11
+class PilTransform(Transform):
+    _order=11
 
 class PilRandomFlip(PilTransform):
-    def __init__(self, p=0.5): self.p=p
+    def __init__(self, p=0.5):
+        self.p=p
     def __call__(self, x):
         return x.transpose(PIL.Image.FLIP_LEFT_RIGHT) if random.random()<self.p else x
 
 class PilRandomDihedral(PilTransform):
-    def __init__(self, p=0.75): self.p=p*7/8 #Little hack to get the 1/8 identity dihedral transform taken into account.
+    def __init__(self, p=0.75):
+        self.p=p*7/8 #Little hack to get the 1/8 identity dihedral transform taken into account.
     def __call__(self, x):
-        if random.random()>self.p: return x
+        if random.random()>self.p:
+            return x
         return x.transpose(random.randint(0,6))
 
 from random import randint
@@ -41,14 +49,16 @@ def process_sz(sz):
     sz = listify(sz)
     return tuple(sz if len(sz)==2 else [sz[0],sz[0]])
 
-def default_crop_size(w,h): return [w,w] if w < h else [h,h]
+def default_crop_size(w,h):
+    return [w,w] if w < h else [h,h]
 
 class GeneralCrop(PilTransform):
     def __init__(self, size, crop_size=None, resample=PIL.Image.BILINEAR):
         self.resample,self.size = resample,process_sz(size)
         self.crop_size = None if crop_size is None else process_sz(crop_size)
 
-    def default_crop_size(self, w,h): return default_crop_size(w,h)
+    def default_crop_size(self, w,h):
+        return default_crop_size(w,h)
 
     def __call__(self, x):
         csize = self.default_crop_size(*x.size) if self.crop_size is None else self.crop_size
@@ -61,7 +71,8 @@ class CenterCrop(GeneralCrop):
         super().__init__(size, resample=resample)
         self.scale = scale
 
-    def default_crop_size(self, w,h): return [w/self.scale,h/self.scale]
+    def default_crop_size(self, w,h):
+        return [w/self.scale,h/self.scale]
 
     def get_corners(self, w, h, wc, hc):
         return ((w-wc)//2, (h-hc)//2, (w-wc)//2+wc, (h-hc)//2+hc)
@@ -84,10 +95,14 @@ class RandomResizedCrop(GeneralCrop):
                 top  = random.randint(0, h - new_h)
                 return (left, top, left + new_w, top + new_h)
 
-        # Fallback to central crop
-        left,top = randint(0,w-self.crop_size[0]),randint(0,h-self.crop_size[1])
-        return (left, top, left+self.crop_size[0], top+self.crop_size[1])
-        # Fallback to central crop
+        # Fallback to squish
+        if w/h < self.ratio[0]:
+            size = (w, int(w/self.ratio[0]))
+        elif w/h > self.ratio[1]:
+            size = (int(h*self.ratio[1]), h)
+        else:
+            size = (w, h)
+        return ((w-size[0])//2, (h-size[1])//2, (w+size[0])//2, (h+size[1])//2)
 
 from torch import FloatTensor,LongTensor
 
@@ -110,7 +125,8 @@ def warp(img, size, src_coords, resample=PIL.Image.BILINEAR):
     res = img.transform(size, PIL.Image.PERSPECTIVE, list(c), resample=resample)
     return res
 
-def uniform(a,b): return a + (b-a) * random.random()
+def uniform(a,b):
+    return a + (b-a) * random.random()
 
 class PilTiltRandomCrop(PilTransform):
     def __init__(self, size, crop_size=None, magnitude=0., resample=PIL.Image.BILINEAR):
@@ -130,5 +146,6 @@ class PilTiltRandomCrop(PilTransform):
 
 import numpy as np
 
-def np_to_float(x): return torch.from_numpy(np.array(x, dtype=np.float32, copy=False)).permute(2,0,1).contiguous()/255.
+def np_to_float(x):
+    return torch.from_numpy(np.array(x, dtype=np.float32, copy=False)).permute(2,0,1).contiguous()/255.
 np_to_float._order = 30

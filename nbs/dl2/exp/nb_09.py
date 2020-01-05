@@ -6,7 +6,7 @@
 
 from exp.nb_08 import *
 
-def sgd_step(p, lr, **kwargs):
+def sgd_step(p, lr, **kwargs): # it needs lr from **hyper, and it's mapped this easily!
     p.data.add_(-lr, p.grad.data)
     return p
 
@@ -14,12 +14,15 @@ class Recorder(Callback):
     def begin_fit(self): self.lrs,self.losses = [],[]
 
     def after_batch(self):
-        if not self.in_train: return
+        if not self.in_train:
+            return
         self.lrs.append(self.opt.hypers[-1]['lr'])
         self.losses.append(self.loss.detach().cpu())
 
-    def plot_lr  (self): plt.plot(self.lrs)
-    def plot_loss(self): plt.plot(self.losses)
+    def plot_lr  (self):
+        plt.plot(self.lrs)
+    def plot_loss(self):
+        plt.plot(self.losses)
 
     def plot(self, skip_last=0):
         losses = [o.item() for o in self.losses]
@@ -33,11 +36,14 @@ class ParamScheduler(Callback):
         self.pname,self.sched_funcs = pname,listify(sched_funcs)
 
     def begin_batch(self):
-        if not self.in_train: return
+        if not self.in_train:
+            return
         fs = self.sched_funcs
-        if len(fs)==1: fs = fs*len(self.opt.param_groups)
+        if len(fs)==1:
+            fs = fs*len(self.opt.param_groups)
         pos = self.n_epochs/self.epochs
-        for f,h in zip(fs,self.opt.hypers): h[self.pname] = f(pos)
+        for f,h in zip(fs,self.opt.hypers):
+            h[self.pname] = f(pos)
 
 class LR_Find(Callback):
     _order=1
@@ -46,15 +52,18 @@ class LR_Find(Callback):
         self.best_loss = 1e9
 
     def begin_batch(self):
-        if not self.in_train: return
+        if not self.in_train:
+            return
         pos = self.n_iter/self.max_iter
         lr = self.min_lr * (self.max_lr/self.min_lr) ** pos
-        for pg in self.opt.hypers: pg['lr'] = lr
+        for pg in self.opt.hypers:
+            pg['lr'] = lr
 
     def after_step(self):
         if self.n_iter>=self.max_iter or self.loss>self.best_loss*10:
             raise CancelTrainException()
-        if self.loss < self.best_loss: self.best_loss = self.loss
+        if self.loss < self.best_loss:
+            self.best_loss = self.loss
 
 def weight_decay(p, lr, wd, **kwargs):
     p.data.mul_(1 - lr*wd)
@@ -69,9 +78,11 @@ l2_reg._defaults = dict(wd=0.)
 def maybe_update(os, dest, f):
     for o in os:
         for k,v in f(o).items():
-            if k not in dest: dest[k] = v
+            if k not in dest:
+                dest[k] = v
 
-def get_defaults(d): return getattr(d,'_defaults',{})
+def get_defaults(d):
+    return getattr(d,'_defaults',{})
 
 class Optimizer():
     def __init__(self, params, steppers, **defaults):
@@ -111,26 +122,32 @@ class StatefulOptimizer(Optimizer):
                 self.state[p] = {}
                 maybe_update(self.stats, self.state[p], lambda o: o.init_state(p))
             state = self.state[p]
-            for stat in self.stats: state = stat.update(p, state, **hyper)
+            for stat in self.stats:
+                state = stat.update(p, state, **hyper)
             compose(p, self.steppers, **state, **hyper)
             self.state[p] = state
 
 class Stat():
     _defaults = {}
-    def init_state(self, p): raise NotImplementedError
-    def update(self, p, state, **kwargs): raise NotImplementedError
+    def init_state(self, p):
+        raise NotImplementedError
+    def update(self, p, state, **kwargs):
+        raise NotImplementedError
 
 def momentum_step(p, lr, grad_avg, **kwargs):
     p.data.add_(-lr, grad_avg)
     return p
 
-def lin_comb(v1, v2, beta): return beta*v1 + (1-beta)*v2
+def lin_comb(v1, v2, beta):
+    return beta*v1 + (1-beta)*v2
 
 class AverageGrad(Stat):
     _defaults = dict(mom=0.9)
 
-    def __init__(self, dampening:bool=False): self.dampening=dampening
-    def init_state(self, p): return {'grad_avg': torch.zeros_like(p.grad.data)}
+    def __init__(self, dampening:bool=False):
+        self.dampening=dampening
+    def init_state(self, p):
+        return {'grad_avg': torch.zeros_like(p.grad.data)}
     def update(self, p, state, mom, **kwargs):
         state['mom_damp'] = 1-mom if self.dampening else 1.
         state['grad_avg'].mul_(mom).add_(state['mom_damp'], p.grad.data)
@@ -139,20 +156,24 @@ class AverageGrad(Stat):
 class AverageSqrGrad(Stat):
     _defaults = dict(sqr_mom=0.99)
 
-    def __init__(self, dampening:bool=True): self.dampening=dampening
-    def init_state(self, p): return {'sqr_avg': torch.zeros_like(p.grad.data)}
+    def __init__(self, dampening:bool=True):
+        self.dampening=dampening
+    def init_state(self, p):
+        return {'sqr_avg': torch.zeros_like(p.grad.data)}
     def update(self, p, state, sqr_mom, **kwargs):
         state['sqr_damp'] = 1-sqr_mom if self.dampening else 1.
         state['sqr_avg'].mul_(sqr_mom).addcmul_(state['sqr_damp'], p.grad.data, p.grad.data)
         return state
 
 class StepCount(Stat):
-    def init_state(self, p): return {'step': 0}
+    def init_state(self, p):
+        return {'step': 0}
     def update(self, p, state, **kwargs):
         state['step'] += 1
         return state
 
-def debias(mom, damp, step): return damp * (1 - mom**step) / (1-mom)
+def debias(mom, damp, step):
+    return damp * (1 - mom**step) / (1-mom)
 
 def adam_step(p, lr, mom, mom_damp, step, sqr_mom, sqr_damp, grad_avg, sqr_avg, eps, **kwargs):
     debias1 = debias(mom,     mom_damp, step)

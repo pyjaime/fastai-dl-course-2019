@@ -34,9 +34,14 @@ def camel2snake(name):
     return re.sub(_camel_re2, r'\1_\2', s1).lower()
 
 class Callback():
-    _order=0
-    def set_runner(self, run): self.run=run
-    def __getattr__(self, k): return getattr(self.run, k)
+    _order=0 # to determine in which order a callback should be run (default: 0, first)
+
+    def set_runner(self, run):
+        self.run=run
+
+    def __getattr__(self, k): # Python executes this if we call an attribute and is unable to find it
+        return getattr(self.run, k) # looks inside the Runner
+
     @property
     def name(self):
         name = re.sub(r'Callback$', '', self.__class__.__name__)
@@ -110,7 +115,7 @@ class Runner():
         self.stop=False
 
     def fit(self, epochs, learn):
-        self.epochs,self.learn,self.loss = epochs,learn,tensor(0.)
+        self.epochs,self.learn = epochs,learn
 
         try:
             for cb in self.cbs: cb.set_runner(self)
@@ -128,8 +133,13 @@ class Runner():
             self.learn = None
 
     def __call__(self, cb_name):
+        '''
+        # this save us of writing callback repetitive code. Called like this: self('str')
+        '''
         for cb in sorted(self.cbs, key=lambda x: x._order):
+            # try to find the function in the callback; if not, set it to None
             f = getattr(cb, cb_name, None)
+            # if it's found, it's actually called
             if f and f(): return True
         return False
 
