@@ -15,15 +15,18 @@ class NoneReduce():
             self.old_red = getattr(self.loss_func, 'reduction')
             setattr(self.loss_func, 'reduction', 'none')
             return self.loss_func
-        else: return partial(self.loss_func, reduction='none')
+        else:
+            return partial(self.loss_func, reduction='none')
 
     def __exit__(self, type, value, traceback):
-        if self.old_red is not None: setattr(self.loss_func, 'reduction', self.old_red)
+        if self.old_red is not None:
+            setattr(self.loss_func, 'reduction', self.old_red)
 
 from torch.distributions.beta import Beta
 
 def unsqueeze(input, dims):
-    for dim in listify(dims): input = torch.unsqueeze(input, dim)
+    for dim in listify(dims):
+        input = torch.unsqueeze(input, dim)
     return input
 
 def reduce_loss(loss, reduction='mean'):
@@ -31,12 +34,15 @@ def reduce_loss(loss, reduction='mean'):
 
 class MixUp(Callback):
     _order = 90 #Runs after normalization and cuda
-    def __init__(self, α:float=0.4): self.distrib = Beta(tensor([α]), tensor([α]))
+    def __init__(self, α:float=0.4):
+        self.distrib = Beta(tensor([α]), tensor([α]))
 
-    def begin_fit(self): self.old_loss_func,self.run.loss_func = self.run.loss_func,self.loss_func
+    def begin_fit(self):
+        self.old_loss_func,self.run.loss_func = self.run.loss_func,self.loss_func
 
     def begin_batch(self):
-        if not self.in_train: return #Only mixup things during training
+        if not self.in_train:
+            return #Only mixup things during training
         λ = self.distrib.sample((self.yb.size(0),)).squeeze().to(self.xb.device)
         λ = torch.stack([λ, 1-λ], 1)
         self.λ = unsqueeze(λ.max(1)[0], (1,2,3))
@@ -44,10 +50,12 @@ class MixUp(Callback):
         xb1,self.yb1 = self.xb[shuffle],self.yb[shuffle]
         self.run.xb = lin_comb(self.xb, xb1, self.λ)
 
-    def after_fit(self): self.run.loss_func = self.old_loss_func
+    def after_fit(self):
+        self.run.loss_func = self.old_loss_func
 
     def loss_func(self, pred, yb):
-        if not self.in_train: return self.old_loss_func(pred, yb)
+        if not self.in_train:
+            return self.old_loss_func(pred, yb)
         with NoneReduce(self.old_loss_func) as loss_func:
             loss1 = loss_func(pred, yb)
             loss2 = loss_func(pred, self.yb1)
