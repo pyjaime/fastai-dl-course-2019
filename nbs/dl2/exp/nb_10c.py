@@ -15,12 +15,14 @@ def get_master(opt, flat_master=False):
         for pg in model_pgs:
             mp = parameters_to_vector([param.data.float() for param in pg])
             mp = torch.nn.Parameter(mp, requires_grad=True)
-            if mp.grad is None: mp.grad = mp.new(*mp.size())
+            if mp.grad is None:
+                mp.grad = mp.new(*mp.size())
             master_pgs.append([mp])
     else:
         master_pgs = [[param.clone().float().detach() for param in pg] for pg in model_pgs]
         for pg in master_pgs:
-            for param in pg: param.requires_grad_(True)
+            for param in pg:
+                param.requires_grad_(True)
     return model_pgs, master_pgs
 
 def to_master_grads(model_pgs, master_pgs, flat_master:bool=False)->None:
@@ -40,7 +42,8 @@ def grad_overflow(param_groups):
         for p in group:
             if p.grad is not None:
                 s = float(p.grad.data.float().sum())
-                if s == float('inf') or s == float('-inf') or s != s: return True
+                if s == float('inf') or s == float('-inf') or s != s:
+                    return True
     return False
 
 class MixedPrecision(Callback):
@@ -57,12 +60,16 @@ class MixedPrecision(Callback):
         self.model_pgs, self.master_pgs = get_master(self.opt, self.flat_master)
         #Changes the optimizer so that the optimization step is done in FP32.
         self.run.opt.param_groups = self.master_pgs #Put those param groups inside our runner.
-        if self.dynamic: self.count = 0
+        if self.dynamic:
+            self.count = 0
 
-    def begin_batch(self): self.run.xb = self.run.xb.half() #Put the inputs to half precision
-    def after_pred(self):  self.run.pred = self.run.pred.float() #Compute the loss in FP32
+    def begin_batch(self):
+        self.run.xb = self.run.xb.half() #Put the inputs to half precision
+    def after_pred(self):
+        self.run.pred = self.run.pred.float() #Compute the loss in FP32
     def after_loss(self):
-        if self.in_train: self.run.loss *= self.loss_scale #Loss scaling to avoid gradient underflow
+        if self.in_train:
+            self.run.loss *= self.loss_scale #Loss scaling to avoid gradient underflow
 
     def after_backward(self):
         #First, check for an overflow
@@ -75,7 +82,8 @@ class MixedPrecision(Callback):
         to_master_grads(self.model_pgs, self.master_pgs, self.flat_master)
         for master_params in self.master_pgs:
             for param in master_params:
-                if param.grad is not None: param.grad.div_(self.loss_scale)
+                if param.grad is not None:
+                    param.grad.div_(self.loss_scale)
         #Check if it's been long enough without overflow
         if self.dynamic:
             self.count += 1
